@@ -81,6 +81,7 @@ static char* replace_pattern(const char *input, apr_table_t *GET, apr_array_head
     char *result, *modifiable_input, *current_pos;
     size_t result_len;
 
+    // Copy the input to a modifiable string
     modifiable_input = apr_pstrdup(pool, input);
     current_pos = modifiable_input;
 
@@ -101,7 +102,7 @@ static char* replace_pattern(const char *input, apr_table_t *GET, apr_array_head
 
         // Retrieve the value from the appropriate table (GET or POST)
         if (is_get) {
-            value = (char *)apr_table_get(GET, key);
+            value = (const char *)apr_table_get(GET, key);
         } else {
             // Search through the POST array to find matching key
             value = NULL;
@@ -116,10 +117,10 @@ static char* replace_pattern(const char *input, apr_table_t *GET, apr_array_head
         }
 
         if (!value) {
-            value = "";
+            value = ""; // Default value if key not found
         }
 
-        result_len = strlen(modifiable_input) - (end_pos - current_pos);
+        result_len = strlen(modifiable_input) - (end_pos - current_pos) + strlen(value);
         result = apr_pcalloc(pool, result_len + 1);
 
         size_t prefix_len = start_pos - modifiable_input - (is_get ? strlen(pattern_start_get) : strlen(pattern_start_post));
@@ -141,7 +142,7 @@ static char* replace_pattern(const char *input, apr_table_t *GET, apr_array_head
 static char* read_and_process_pattern(const char *filename, request_rec *r, apr_table_t *GET, apr_array_header_t *POST) {
     apr_file_t *file;
     apr_status_t rv;
-    char buffer[256];
+    char buffer[128];
     apr_size_t bytes_read;
     apr_pool_t *pool = r->pool;
     char *file_content = NULL;
@@ -167,7 +168,7 @@ static char* read_and_process_pattern(const char *filename, request_rec *r, apr_
 }
 
 void read_and_process_file(const char *buffer, request_rec *r) {
-    char *output_buffer = apr_pcalloc(r->pool, 1024); 
+    char *output_buffer = apr_pcalloc(r->pool, 4096); 
     char *result_buffer = apr_pcalloc(r->pool, strlen(buffer) + 1);
     char *current_position = buffer;
 
@@ -279,7 +280,7 @@ void execute_python_code(python_subprocess_t *subprocess, const char *code, char
         fflush(subprocess->input);
 
         size_t total_length = 0;
-        char buffer[128];
+        char buffer[258];
         int end_marker_found = 0;
 
         while (fgets(buffer, sizeof(buffer), subprocess->output) != NULL) {
