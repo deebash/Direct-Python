@@ -56,8 +56,8 @@ python_subprocess_t *start_python_subprocess(request_rec *r) {
         close(output_pipe[0]);
         dup2(input_pipe[0], STDIN_FILENO);
         dup2(output_pipe[1], STDOUT_FILENO);
-        //dup2(output_pipe[1], STDERR_FILENO); TODO: Need to implement error caching method as next
-        execlp("python3", "python3", "-i", NULL);
+        //dup2(output_pipe[1], STDERR_FILENO); TODO: Need to implement error catching method as next
+        execlp("python3", "python3", "-i" ,NULL);
         exit(1); 
     } else { // Parent process
         close(input_pipe[0]);
@@ -71,6 +71,143 @@ python_subprocess_t *start_python_subprocess(request_rec *r) {
         return subprocess;
     }
 }
+
+static char* replace_pattern(const char *input, apr_table_t *GET, apr_array_header_t *POST, apr_pool_t *pool) {
+    const char *pattern_start_get = "~DP_GET['";
+    const char *pattern_start_post = "~DP_POST['";
+    const char *pattern_end = "']";
+    const char *start_pos, *end_pos;
+    const char *key, *value;
+    char *result, *modifiable_input, *current_pos;
+    size_t result_len;
+
+    modifiable_input = apr_pstrdup(pool, input);
+    current_pos = modifiable_input;
+
+    while ((start_pos = strstr(current_pos, pattern_start_get)) != NULL || (start_pos = strstr(current_pos, pattern_start_post)) != NULL) {
+        // Determine whether it's DP_GET or DP_POST
+        int is_get = (start_pos == strstr(current_pos, pattern_start_get));
+        start_pos += (is_get ? strlen(pattern_start_get) : strlen(pattern_start_post));
+
+        // Find the end of the pattern
+        end_pos = strstr(start_pos, pattern_end);
+        if (!end_pos) {
+            break;
+        }
+
+        // Extract the key
+        size_t key_len = end_pos - start_pos;
+        key = apr_pstrndup(pool, start_pos, key_len);
+
+        // Retrieve the value from the appropriate table (GET or POST)
+        if (is_get) {
+            value = (char *)apr_table_get(GET, key);
+        } else {
+            // Search through the POST array to find matching key
+            value = NULL;
+            int i;
+            for (i = 0; i < POST->nelts; ++i) {
+                apr_table_entry_t *entry = &APR_ARRAY_IDX(POST, i, apr_table_entry_t);
+                if (strcmp(entry->key, key) == 0) {
+                    value = entry->val;
+                    break;
+                }
+            }
+        }
+
+        if (!value) {
+            value = "";
+        }
+
+        result_len = strlen(modifiable_input) - (end_pos - current_pos);
+        result = apr_pcalloc(pool, result_len + 1);
+
+        size_t prefix_len = start_pos - modifiable_input - (is_get ? strlen(pattern_start_get) : strlen(pattern_start_post));
+        strncpy(result, modifiable_input, prefix_len);
+        result[prefix_len] = '\0';
+        strcat(result, value);
+        strcat(result, end_pos + strlen(pattern_end));
+
+        current_pos = result;
+        modifiable_input = result;
+    }
+
+    return modifiable_input;
+}
+
+/**
+ * Fetches both GET and POST params and replaces with Python code
+*/
+static char* read_and_process_pattern(const char *filename, request_rec *r, apr_table_t *GET, apr_array_header_t *POST) {
+    apr_file_t *file;
+    apr_status_t rv;
+    char buffer[256];
+    apr_size_t bytes_read;
+    apr_pool_t *pool = r->pool;
+    char *file_content = NULL;
+
+    rv = apr_file_open(&file, filename, APR_FOPEN_READ, APR_OS_DEFAULT, pool);
+    if (rv != APR_SUCCESS) {
+        //ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, "Error opening file: %s", filename);
+        return NULL;
+    }
+
+    while ((rv = apr_file_gets(buffer, sizeof(buffer), file)) == APR_SUCCESS) {
+        size_t len = strlen(buffer);
+        if (len > 0 && buffer[len - 1] == '\n') {
+            buffer[len - 1] = '\0';
+        }
+
+        char *processed_line = replace_pattern(buffer, GET, POST, pool);
+        file_content = apr_pstrcat(pool, file_content ? file_content : "", processed_line, "\n", NULL);
+    }
+
+    apr_file_close(file);
+    return file_content;
+}
+
+void read_and_process_file(const char *buffer, request_rec *r) {
+    char *output_buffer = apr_pcalloc(r->pool, 1024); 
+    char *result_buffer = apr_pcalloc(r->pool, strlen(buffer) + 1);
+    char *current_position = buffer;
+
+    python_subprocess_t *subprocess = start_python_subprocess(r);
+    if (!subprocess) {
+        ap_rprintf(r, "Failed to start Python subprocess\n");
+        return;
+    }
+
+    // Parse the content
+    while (1) {
+        char *start = strstr(current_position, "<?dp");
+        if (!start) {
+            strcat(result_buffer, current_position); 
+            break;
+        }
+        strncat(result_buffer, current_position, start - current_position);
+
+        start += 4; // Move past "<?dp"
+        char *end = strstr(start, "?>");
+        if (end) {
+            *end = '\0';
+
+            execute_python_code(subprocess, start, output_buffer, 1024, r);
+            strcat(result_buffer, output_buffer); 
+
+            current_position = end + 2; // Move past "?>"
+        } else {
+            break; // No closing tag found
+        }
+    }
+
+    ap_rprintf(r, "%s", result_buffer);
+
+    // Clean up the subprocess
+    fclose(subprocess->input);
+    fclose(subprocess->output);
+    waitpid(subprocess->pid, NULL, 0);
+}
+
 static int directpython_handler(request_rec *r)
 {
     int rc, exists;
@@ -106,8 +243,14 @@ static int directpython_handler(request_rec *r)
     
     ap_set_content_type(r, "text/html");
 
-    
-    read_and_process_file(filename, r);
+    char *processed_content = read_and_process_pattern(filename, r, GET, POST);
+    if (!processed_content) {
+        ap_rputs("Error processing params", r);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    // Further process the content
+    read_and_process_file(processed_content, r);
 
     return OK;
 }
@@ -128,6 +271,7 @@ module AP_MODULE_DECLARE_DATA directpython_module = {
     NULL, /* table of config file commands       */
     directpython_register_hooks  /* register hooks */
 };
+
 
 void execute_python_code(python_subprocess_t *subprocess, const char *code, char *output, size_t output_size, request_rec *r) {
     if (subprocess && subprocess->input && subprocess->output) {
@@ -157,7 +301,7 @@ void execute_python_code(python_subprocess_t *subprocess, const char *code, char
         }
 
         if (!end_marker_found) {
-            // Todo: ERROR caching method
+            // Todo: ERROR catching method
         }
 
         if (total_length == 0) {
@@ -167,71 +311,5 @@ void execute_python_code(python_subprocess_t *subprocess, const char *code, char
         }
     } else {
         strncpy(output, "Error executing script", output_size);
-    }
-}
-
-void read_and_process_file(const char *filename, request_rec *r) {
-    apr_file_t *file;
-    apr_status_t rc;
-
-    rc = apr_file_open(&file, filename, APR_READ, APR_OS_DEFAULT, r->pool);
-    if (rc == APR_SUCCESS) {
-        apr_off_t offset = 0;
-        apr_file_seek(file, APR_END, &offset);
-        apr_size_t size = (apr_size_t)offset;
-        char *buffer = apr_pcalloc(r->pool, size + 1);
-
-        offset = 0;
-        apr_file_seek(file, APR_SET, &offset);
-
-        int status = apr_file_read(file, buffer, &size);
-        if (status != APR_SUCCESS) {
-            ap_rprintf(r, "Could not read file\n");
-        } else {
-            buffer[size] = '\0'; 
-
-            char *output_buffer = apr_pcalloc(r->pool, 1024); 
-            char *result_buffer = apr_pcalloc(r->pool, size + 1);
-            char *current_position = buffer;
-
-            python_subprocess_t *subprocess = start_python_subprocess(r);
-            if (!subprocess) {
-                ap_rprintf(r, "Failed to start Python subprocess\n");
-                return;
-            }
-
-            // Parse the content
-            while (1) {
-                char *start = strstr(current_position, "<?dp");
-                if (!start) {
-                    strcat(result_buffer, current_position); 
-                    break;
-                }
-                strncat(result_buffer, current_position, start - current_position);
-
-                start += 4; // Move past "<?dp"
-                char *end = strstr(start, "?>");
-                if (end) {
-                    *end = '\0';
-
-                    execute_python_code(subprocess, start, output_buffer, 1024, r);
-                    strcat(result_buffer, output_buffer); 
-
-                    current_position = end + 2; // Move past "?>"
-                } else {
-                    break; // No closing tag found
-                }
-            }
-
-            ap_rprintf(r, "%s", result_buffer);
-
-            // Clean up the subprocess
-            fclose(subprocess->input);
-            fclose(subprocess->output);
-            waitpid(subprocess->pid, NULL, 0);
-        }
-        apr_file_close(file);
-    } else {
-        ap_rprintf(r, "Could not open file\n");
     }
 }
