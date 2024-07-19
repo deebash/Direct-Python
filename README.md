@@ -1,4 +1,4 @@
-#Direct-Python (mod_dp)
+# Direct-Python (mod_dp)
 A simple tool to execute Python code embedded within HTML files (imagine PHP).
 
 ----
@@ -7,8 +7,8 @@ A simple tool to execute Python code embedded within HTML files (imagine PHP).
 - [x] Execute Python code within HTML files.
 - [x] Keeps same memory across all python blocks.
 - [x] Can acccess GET & POST params
-- [ ]Maintaining sessions across pages [Work in progress]
-- [ ]Setting Mime type of the page [Work in progress]
+- [ ] Maintaining sessions across pages [Work in progress]
+- [ ] Setting Mime type of the page [Work in progress]
 
 ----
 ### Prerequisite
@@ -50,6 +50,6 @@ Just like PHP, you need to use **<?dp** as a starting tag and **?>** as ending t
 
 ----
 
-####Feedback
+#### Feedback
 Write your feedback to deebash2009@gmail.com
 Author: Deebash Dharmalingam (deebash.org)
