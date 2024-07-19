@@ -19,6 +19,7 @@ A simple tool to execute Python code embedded within HTML files (imagine PHP).
 
 ----
 **Example usage**
+
 Write the below content in a file and save it with extension .dp (Direct-Python)
 
 **hello.dp**
@@ -31,11 +32,12 @@ Write the below content in a file and save it with extension .dp (Direct-Python)
     <body>
 <?dp 
 print('<p>Hello World</p>')
-a = ~DP_GET['name']
-b = ~DP_POST['action']
+a = "~DP_GET['name']"  # using double quotes accepts string
+# count = ~DP_GET['total'] to get integer
+# userId = ~DP_POST['userId'] to get POST params
 ?>
 <hr>
-<p>Hello! &nbsp;
+<p>Hello!
 <?dp 
 print(a)
 ?>
@@ -46,7 +48,7 @@ print(a)
 ```
 :warning: **While embedding python code be aware of indents.**
 
-Just like PHP, you need to use **<?dp** as a starting tag and **?>** as ending tag.
+Just like PHP, you need to use dp after the question mark.
 
 ----
 
