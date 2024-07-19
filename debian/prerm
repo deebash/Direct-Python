@@ -1,0 +1,11 @@
+#!/bin/bash
+set -e
+
+# Disable the Apache module
+a2dismod directpython
+
+# Remove the configuration file
+rm -f /etc/apache2/mods-enabled/mod_dp.conf
+
+# Restart Apache to apply changes
+systemctl restart apache2
