@@ -48,7 +48,7 @@ print(a)
 ```
 :warning: **While embedding python code be aware of indents.**
 
-Just like PHP, you need to use dp after the question mark.
+Just like PHP, you need to use dp after the question mark. Save the file in your root /var/www/html and access it through localhost/hello.dp
 
 ----
 
