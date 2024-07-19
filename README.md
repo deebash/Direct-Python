@@ -31,7 +31,15 @@ Write the below content in a file and save it with extension .dp (Direct-Python)
     <body>
 <?dp 
 print('<p>Hello World</p>')
+a = ~DP_GET['name']
+b = ~DP_POST['action']
 ?>
+<hr>
+<p>Hello! &nbsp;
+<?dp 
+print(a)
+?>
+</p>
     </body>
 </html>
 
