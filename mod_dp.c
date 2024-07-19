@@ -168,8 +168,8 @@ static char* read_and_process_pattern(const char *filename, request_rec *r, apr_
 }
 
 void read_and_process_file(const char *buffer, request_rec *r) {
-    char *output_buffer = apr_pcalloc(r->pool, 4096); 
-    char *result_buffer = apr_pcalloc(r->pool, strlen(buffer) + 1);
+    char *output_buffer = apr_pcalloc(r->pool, 134217728); 
+    char *result_buffer = apr_pcalloc(r->pool, 134217728);
     char *current_position = buffer;
 
     python_subprocess_t *subprocess = start_python_subprocess(r);
@@ -192,7 +192,7 @@ void read_and_process_file(const char *buffer, request_rec *r) {
         if (end) {
             *end = '\0';
 
-            execute_python_code(subprocess, start, output_buffer, 1024, r);
+            execute_python_code(subprocess, start, output_buffer, 134217728, r);
             strcat(result_buffer, output_buffer); 
 
             current_position = end + 2; // Move past "?>"
@@ -215,9 +215,6 @@ static int directpython_handler(request_rec *r)
     apr_finfo_t finfo;
     apr_file_t *file;
     char *filename;
-    char buffer[256];
-    apr_size_t readBytes;
-    int n;
     apr_table_t *GET;
     apr_array_header_t *POST;
 
@@ -280,7 +277,7 @@ void execute_python_code(python_subprocess_t *subprocess, const char *code, char
         fflush(subprocess->input);
 
         size_t total_length = 0;
-        char buffer[258];
+        char buffer[128];
         int end_marker_found = 0;
 
         while (fgets(buffer, sizeof(buffer), subprocess->output) != NULL) {
