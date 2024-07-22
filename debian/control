@@ -2,9 +2,9 @@ Source: direct-python
 Section: utils
 Priority: optional
 Maintainer: Deebash Dharmalingam <deebash2009@gmail.com>
-Build-Depends: debhelper-compat (=13)
+Build-Depends: debhelper-compat (=13), apache2-dev
 Standards-Version: 4.5.0
-Homepage: http://example.com
+Homepage: https://deebash.org
 
 Package: direct-python
 Architecture: all

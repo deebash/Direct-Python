@@ -5,15 +5,37 @@ set -e
 CONFIG_FILE=/usr/local/share/mod_dp/config/mod_dp.conf
 APACHE_CONF_DIR=/etc/apache2/mods-available
 APACHE_CONF_ENABLED_DIR=/etc/apache2/mods-enabled
+MODULE_SOURCE=/usr/lib/apache2/modules/mod_dp.so
+MODULE_DESTINATION=/usr/lib/apache2/modules/mod_dp.so
 
 # Copy the configuration file to Apache's mods-available directory
-cp "$CONFIG_FILE" "$APACHE_CONF_DIR"
+if [ -f "$CONFIG_FILE" ]; then
+    cp "$CONFIG_FILE" "$APACHE_CONF_DIR/"
+else
+    echo "Error: Configuration file not found at $CONFIG_FILE"
+    exit 1
+fi
 
 # Create a symlink in the mods-enabled directory
+if [ -L "$APACHE_CONF_ENABLED_DIR/mod_dp.conf" ] || [ -e "$APACHE_CONF_ENABLED_DIR/mod_dp.conf" ]; then
+    rm "$APACHE_CONF_ENABLED_DIR/mod_dp.conf"
+fi
+
 ln -s "$APACHE_CONF_DIR/mod_dp.conf" "$APACHE_CONF_ENABLED_DIR/mod_dp.conf"
 
+# Copy the module file to Apache's modules directory
+if [ -f "$MODULE_DESTINATION" ]; then
+    echo "Module file already exists at $MODULE_DESTINATION"
+else
+    cp debian/direct-python/usr/lib/apache2/modules/mod_dp.so "$MODULE_DESTINATION"
+fi
+
 # Enable the module
-a2enmod directpython
+if ! apache2ctl -M | grep -q 'directpython_module'; then
+    a2enmod directpython
+else
+    echo "Module directpython is already enabled."
+fi
 
 # Reload Apache to apply the changes
 systemctl reload apache2

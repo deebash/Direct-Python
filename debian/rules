@@ -2,3 +2,12 @@
 
 %:
 	dh $@
+
+override_dh_auto_install:
+	dh_auto_install
+	# Ensure the directory exists
+	mkdir -p debian/direct-python/usr/lib/apache2/modules
+	mkdir -p debian/direct-python/usr/share/mod_dp/config
+	# Manually install the module
+	install -m 644 src/.libs/mod_dp.so debian/direct-python/usr/lib/apache2/modules/
+	install -m 644 config/mod_dp.conf debian/direct-python/usr/share/mod_dp/config/

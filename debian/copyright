@@ -1,6 +1,6 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Direct Python (mod_dp)
-Source: http://example.com
+Source: https://deebash.org
 
 Files: *
 Copyright: 2024 Deebash Dharmalingam <deebash2009@gmail.com>

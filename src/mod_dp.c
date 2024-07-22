@@ -33,6 +33,11 @@
  * 
  * Debug commands
  * sudo apache2ctl configtest
+ * Build for deb package
+ * sudo dpkg-buildpackage -us -uc
+ * sudo dpkg-buildpackage -S -sa
+ * debsign -k CF0400B795295159 ../direct-python_0.0.7_source.changes
+ * dput ppa:deebash/direct-python direct-python_0.0.7_source.changes
  */ 
 
 #include "httpd.h"
