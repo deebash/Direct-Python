@@ -15,7 +15,12 @@ A simple tool to execute Python code embedded within HTML files (imagine PHP).
 1. Apache httpd server
 2. Python3
 
-
+### Install
+```
+sudo add-apt-repository ppa:deebash/direct-python
+sudo apt-get update
+sudo apt-get install direct-python
+```
 
 ----
 **Example usage**
